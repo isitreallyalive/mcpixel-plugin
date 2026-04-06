@@ -1,11 +1,5 @@
-import java.io.FileInputStream
-import java.net.URI
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
-
 val minecraft = project.property("minecraft_version").toString()
+val imageio = project.property("imageio_version").toString()
 
 plugins {
     id("java-library")

@@ -1137,7 +1137,7 @@ dependencies = [
 [[package]]
 name = "mcpixel-lib"
 version = "0.1.0"
-source = "git+https://github.com/isitreallyalive/mcpixel.git#f3e4160f723cb2e91b34be6147080f7c84ff355f"
+source = "git+https://github.com/isitreallyalive/mcpixel.git#4ab2e6181f39785e97d5693a80569cc5af59351a"
 dependencies = [
  "exoquant",
  "image",
