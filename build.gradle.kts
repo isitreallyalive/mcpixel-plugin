@@ -86,83 +86,7 @@ tasks {
 
     runServer {
         minecraftVersion(minecraft)
-        jvmArgs("-Dcom.mojang.eula.agree=true", "--enable-preview")
-    }
-
-    // need preview features
-    withType<JavaCompile>().configureEach {
-        options.compilerArgs.add("--enable-preview")
-    }
-
-    // jextract
-    register<Exec>("jextract") {
-        group = "ffi";
-        workingDir = file(".")
-
-        dependsOn("cargoBuild_${currentPlatform()}_${buildMode}")
-
-        var dir = file(".jextract");
-        var exe = dir.resolve("bin/jextract.bat");
-
-        // Build 21-jextract+1-2 (2023/9/25)
-        val osName = System.getProperty("os.name").lowercase()
-        var url = when {
-            osName.contains("windows") -> "https://download.java.net/java/early_access/jextract/21/1/openjdk-21-jextract+1-2_windows-x64_bin.tar.gz"
-            osName.contains("mac") -> "https://download.java.net/java/early_access/jextract/21/1/openjdk-21-jextract+1-2_macos-x64_bin.tar.gz"
-            osName.contains("linux") -> "https://download.java.net/java/early_access/jextract/21/1/openjdk-21-jextract+1-2_linux-x64_bin.tar.gz"
-            else -> error("Unsupported OS: $osName")
-        }
-
-        doFirst {
-            if (!exe.exists()) {
-                println("jextract not found, downloading...")
-                dir.mkdirs()
-
-                // download to disk
-                val archiveFile = dir.resolve("jdk21.tar.gz")
-                URI.create(url).toURL().openStream().use { input ->
-                    Files.copy(input, archiveFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                }
-
-                // extract from archive
-                println("extracting...")
-
-                FileInputStream(archiveFile).use { fis ->
-                    GzipCompressorInputStream(fis).use { gis ->
-                        TarArchiveInputStream(gis).use { tis ->
-                            var entry = tis.nextEntry
-                            while (entry != null) {
-                                val strippedName = entry.name.substringAfter("/")
-                                if (strippedName.isEmpty()) {
-                                    entry = tis.nextEntry
-                                    continue
-                                }
-
-                                val outFile = dir.resolve(strippedName)
-
-                                if (entry.isDirectory) outFile.mkdirs()
-                                else {
-                                    outFile.parentFile?.mkdirs()
-                                    Files.copy(tis, outFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                                }
-                                entry = tis.nextEntry
-                            }
-                        }
-                    }
-                }
-
-                // delete archive
-                archiveFile.delete()
-                println("got jextract!")
-            }
-        }
-
-        commandLine(
-            exe.absolutePath, "ffi/target/generated/mcpixel.h",   // input header
-            "--output", "src/main/java",                                       // output folder
-            "-t", "${project.properties["group"]}.mcpixel.ffi",                // Java package
-            "--source"                                                         // generate source files
-        )
+        jvmArgs("-Dcom.mojang.eula.agree=true")
     }
 
     // copy native libraries
@@ -188,10 +112,6 @@ tasks {
         }
 
         into(layout.buildDirectory.dir("natives"))
-    }
-
-    named("compileJava") {
-        dependsOn("jextract")
     }
 
     named<Jar>("jar") {

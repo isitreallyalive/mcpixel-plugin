@@ -1,4 +1,6 @@
-#[unsafe(no_mangle)]
-extern "C" fn hello_world() {
+use jni::jni_mangle;
+
+#[jni_mangle("dev.newty.mcpixel.ffi.McPixel")]
+pub extern "system" fn hello_world() {
     println!("hello world!");
 }
