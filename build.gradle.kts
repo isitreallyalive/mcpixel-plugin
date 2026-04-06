@@ -22,4 +22,8 @@ tasks {
             expand(props)
         }
     }
+
+    withType<JavaCompile>().configureEach {
+        options.compilerArgs.add("--enable-preview")
+    }
 }
