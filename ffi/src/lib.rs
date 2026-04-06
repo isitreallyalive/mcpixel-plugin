@@ -12,8 +12,8 @@ static VERSION: LazyLock<Version> = LazyLock::new(|| {
 });
 
 bind_java_type! {
-    rust_type = BlockPair,
-    java_type = dev.newty.mcpixel.ffi.BlockPair,
+    rust_type = Texture,
+    java_type = dev.newty.mcpixel.ffi.Texture,
 
     constructors {
         fn new(base_id: JString, base_top: bool, overlay_id: JString, overlay_top: bool)
@@ -60,10 +60,10 @@ pub extern "system" fn art_blocks(mut env: EnvUnowned, _: JClass, ptr: jlong) ->
     let blocks = art.blocks();
 
     env.with_env(|env| {
-        let pair_class = env.find_class(jni_str!("dev/newty/mcpixel/ffi/BlockPair"))?;
+        let texture_class = env.find_class(jni_str!("dev/newty/mcpixel/ffi/Texture"))?;
         let flat_blocks: Vec<_> = blocks.iter().flat_map(|row| row.iter()).collect();
         let array =
-            env.new_object_array(flat_blocks.len() as jsize, pair_class, JObject::null())?;
+            env.new_object_array(flat_blocks.len() as jsize, texture_class, JObject::null())?;
 
         for (i, res) in flat_blocks.iter().enumerate() {
             if let Some(((base_id, base_top), overlay)) = res.as_ref() {
@@ -77,7 +77,7 @@ pub extern "system" fn art_blocks(mut env: EnvUnowned, _: JClass, ptr: jlong) ->
                 };
 
                 // create pair and put it in the array
-                let pair = BlockPair::new(env, base_id, *base_top, overlay_id, overlay_top)?;
+                let pair = Texture::new(env, base_id, *base_top, overlay_id, overlay_top)?;
                 array.set_element(env, i, pair)?;
             }
         }

@@ -81,6 +81,18 @@ tasks {
     runServer {
         minecraftVersion(minecraft)
         jvmArgs("-Dcom.mojang.eula.agree=true")
+
+        doFirst {
+            val propsFile = file("run/server.properties");
+            propsFile.parentFile.mkdirs()
+            propsFile.writeText(
+                """
+                difficulty=peaceful
+                level-type=flat
+                generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}
+                """.trimIndent()
+            )
+        }
     }
 
     // copy native libraries

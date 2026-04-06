@@ -3,3 +3,8 @@ version: '$version'
 
 main: dev.newty.mcpixel.Plugin
 api-version: '1.21'
+
+commands:
+  pixel:
+    description: Builds a pixel art from an image.
+    usage: /pixel <url> <x> <y> <z>
