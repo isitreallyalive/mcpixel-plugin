@@ -7,5 +7,6 @@ public class McPixel {
 
     public static native long newArt(byte[] image);
     public static native void freeArt(long ptr);
-    public static native BlockPair[][] artBlocks(long ptr);
+    public static native int[] artDimensions(long ptr);
+    public static native BlockPair[] artBlocks(long ptr);
 }

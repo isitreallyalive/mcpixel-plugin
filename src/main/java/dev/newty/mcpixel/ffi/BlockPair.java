@@ -1,4 +1,6 @@
 package dev.newty.mcpixel.ffi;
 
-public record BlockPair(ResolvedBlock base, ResolvedBlock overlay) {
+import org.jetbrains.annotations.NotNull;
+
+public record BlockPair(@NotNull String baseId, boolean baseTop, String overlayId, boolean overlayTop) {
 }

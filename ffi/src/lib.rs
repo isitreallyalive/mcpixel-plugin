@@ -1,6 +1,6 @@
-use jni::errors::ThrowRuntimeExAndDefault;
-use jni::objects::{JByteArray, JClass, JObject};
-use jni::sys::{jlong, jobjectArray, jsize};
+use jni::errors::{Error, ThrowRuntimeExAndDefault};
+use jni::objects::{JByteArray, JClass, JIntArray, JObject, JString};
+use jni::sys::{jint, jintArray, jlong, jobjectArray, jsize};
 use jni::{EnvUnowned, bind_java_type, jni_mangle, jni_str};
 use mcpixel::version::Version;
 use mcpixel::{Configuration, PixelArt};
@@ -12,20 +12,11 @@ static VERSION: LazyLock<Version> = LazyLock::new(|| {
 });
 
 bind_java_type! {
-    rust_type = ResolvedBlock,
-    java_type = dev.newty.mcpixel.ffi.ResolvedBlock,
-
-    constructors {
-        fn new(id: JString, top: bool)
-    }
-}
-
-bind_java_type! {
     rust_type = BlockPair,
     java_type = dev.newty.mcpixel.ffi.BlockPair,
 
     constructors {
-        fn new(base: dev.newty.mcpixel.ffi.ResolvedBlock, overlay:dev.newty.mcpixel.ffi.ResolvedBlock)
+        fn new(base_id: JString, base_top: bool, overlay_id: JString, overlay_top: bool)
     }
 }
 
@@ -49,44 +40,49 @@ pub extern "system" fn free_art(_: EnvUnowned, _: JClass, ptr: jlong) {
 }
 
 #[jni_mangle("dev.newty.mcpixel.ffi.McPixel")]
-pub extern "system" fn art_blocks(mut env: EnvUnowned, _: JClass, ptr: jlong) -> jobjectArray {
-    let art = unsafe { &*(ptr as *mut PixelArt) };
+pub extern "system" fn art_dimensions(mut env: EnvUnowned, _: JClass, ptr: jlong) -> jintArray {
+    let art = unsafe { &mut *(ptr as *mut PixelArt) };
+    let (width, height) = art.dimensions();
 
     env.with_env(|env| {
-        let outer = {
-            let class = env.find_class(jni_str!("[Ldev/newty/mcpixel/ffi/BlockPair;"))?; // BlockPair[]
-            env.new_object_array(art.blocks().len() as jsize, class, JObject::null())?
-        };
+        let array = JIntArray::new(env, 2)?;
+        array.set_region(env, 0, &[width as jint, height as jint])?;
 
-        let pair_class = env.find_class(jni_str!("dev/newty/mcpixel/ffi/BlockPair"))?; // BlockPair
+        Ok::<_, Error>(array)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+    .into_raw()
+}
 
-        for (i, row) in art.blocks().iter().enumerate() {
-            let inner = env.new_object_array(row.len() as jsize, &pair_class, JObject::null())?;
+#[jni_mangle("dev.newty.mcpixel.ffi.McPixel")]
+pub extern "system" fn art_blocks(mut env: EnvUnowned, _: JClass, ptr: jlong) -> jobjectArray {
+    let art = unsafe { &*(ptr as *mut PixelArt) };
+    let blocks = art.blocks();
 
-            for (j, res) in row.iter().enumerate() {
-                let Some(((id, top), overlay)) = res.as_ref() else {
-                    continue;
-                };
+    env.with_env(|env| {
+        let pair_class = env.find_class(jni_str!("dev/newty/mcpixel/ffi/BlockPair"))?;
+        let flat_blocks: Vec<_> = blocks.iter().flat_map(|row| row.iter()).collect();
+        let array =
+            env.new_object_array(flat_blocks.len() as jsize, pair_class, JObject::null())?;
 
-                let base = {
+        for (i, res) in flat_blocks.iter().enumerate() {
+            if let Some(((base_id, base_top), overlay)) = res.as_ref() {
+                // resolve
+                let base_id = env.new_string(base_id)?;
+                let (overlay_id, overlay_top) = if let Some((id, top)) = overlay {
                     let id = env.new_string(id)?;
-                    ResolvedBlock::new(env, id, *top)?
-                };
-                let overlay_block = if let Some((id, top)) = overlay {
-                    let id = env.new_string(id)?;
-                    ResolvedBlock::new(env, id, *top)?
+                    (id, *top)
                 } else {
-                    ResolvedBlock::null()
+                    (JString::null(), false)
                 };
 
-                let pair = BlockPair::new(env, base, overlay_block)?;
-                inner.set_element(env, j, pair)?;
+                // create pair and put it in the array
+                let pair = BlockPair::new(env, base_id, *base_top, overlay_id, overlay_top)?;
+                array.set_element(env, i, pair)?;
             }
-
-            outer.set_element(env, i, inner)?;
         }
 
-        Ok::<_, jni::errors::Error>(outer)
+        Ok::<_, Error>(array)
     })
     .resolve::<ThrowRuntimeExAndDefault>()
     .into_raw()
