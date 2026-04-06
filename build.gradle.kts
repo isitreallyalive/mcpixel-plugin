@@ -5,8 +5,11 @@ import java.nio.file.StandardCopyOption
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 
+val minecraft = project.property("minecraft_version").toString()
+
 plugins {
     id("java-library")
+    id("xyz.jpenilla.run-paper") version "3.0.2"
 }
 
 repositories {
@@ -15,7 +18,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("org.spigotmc:spigot-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("org.spigotmc:spigot-api:$minecraft-R0.1-SNAPSHOT")
 }
 
 buildscript {
@@ -79,6 +82,11 @@ tasks {
         filesMatching("plugin.yml") {
             expand(props)
         }
+    }
+
+    runServer {
+        minecraftVersion(minecraft)
+        jvmArgs("-Dcom.mojang.eula.agree=true", "--enable-preview")
     }
 
     // need preview features
@@ -152,12 +160,45 @@ tasks {
         commandLine(
             exe.absolutePath, "ffi/target/generated/mcpixel.h",   // input header
             "--output", "src/main/java",                                       // output folder
-            "-t", "${project.properties["group"]}.mcpixel.ffi",                                     // Java package
+            "-t", "${project.properties["group"]}.mcpixel.ffi",                // Java package
             "--source"                                                         // generate source files
         )
     }
 
+    // copy native libraries
+    register<Copy>("copyNativeLibs") {
+        group = "ffi";
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+
+        dependsOn(targetsToBuild.map { target -> "cargoBuild_${target}_$buildMode" })
+
+        targetsToBuild.forEach { target ->
+            val targetDir = layout.projectDirectory.dir("ffi/target/$target/$buildMode")
+            val libName = when (target) {
+                "x86_64-pc-windows-msvc" -> "ffi.dll"
+                "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu" -> "libffi.so"
+                "x86_64-apple-darwin", "aarch64-apple-darwin" -> "libffi.dylib"
+                else -> error("Unsupported target: $target")
+            }
+            val libFile = targetDir.file(libName)
+
+            from(libFile) {
+                rename { _ -> target }
+            }
+        }
+
+        into(layout.buildDirectory.dir("natives"))
+    }
+
     named("compileJava") {
         dependsOn("jextract")
+    }
+
+    named<Jar>("jar") {
+        dependsOn("copyNativeLibs")
+
+        from(layout.buildDirectory.dir("natives")) {
+            into("natives")
+        }
     }
 }
