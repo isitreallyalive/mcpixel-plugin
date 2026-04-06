@@ -5,6 +5,7 @@ public class McPixel {
         NativeLoader.load();
     }
 
-    public static native long newPixelArt(byte[] image);
-    public static native void freePixelArt(long ptr);
+    public static native long newArt(byte[] image);
+    public static native void freeArt(long ptr);
+    public static native BlockPair[][] artBlocks(long ptr);
 }
