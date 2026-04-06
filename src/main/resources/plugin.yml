@@ -1,0 +1,5 @@
+name: mcpixel
+version: '$version'
+
+main: dev.newty.mcpixel.McPixel
+api-version: '1.21'
