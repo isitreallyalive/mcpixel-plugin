@@ -1,18 +1,23 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 val minecraft = project.property("minecraft_version").toString()
 val imageio = project.property("imageio_version").toString()
 
 plugins {
     id("java-library")
+    id("com.gradleup.shadow") version "9.4.1"
     id("xyz.jpenilla.run-paper") version "3.0.2"
 }
 
 repositories {
     mavenCentral()
+    maven("https://repo.aikar.co/content/groups/aikar/")
     maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
 }
 
 dependencies {
     compileOnly("org.spigotmc:spigot-api:$minecraft-R0.1-SNAPSHOT")
+    implementation("co.aikar:acf-bukkit:0.5.1-SNAPSHOT")
 }
 
 buildscript {
@@ -78,6 +83,21 @@ tasks {
         }
     }
 
+    compileJava {
+        // allow ACF to generate syntax messages
+        options.compilerArgs.add("-parameters")
+    }
+
+    shadowJar {
+        // ACF
+        relocate("co.aikar.commands", "dev.newty.mcpixel.acf")
+        relocate("co.aikar.locales", "dev.newty.mcpixel.locales")
+    }
+
+    named("build") {
+        dependsOn("shadowJar")
+    }
+
     runServer {
         minecraftVersion(minecraft)
         jvmArgs("-Dcom.mojang.eula.agree=true")
@@ -120,7 +140,8 @@ tasks {
         into(layout.buildDirectory.dir("natives"))
     }
 
-    named<Jar>("jar") {
+    // copy native libs into the jar
+    named<ShadowJar>("shadowJar") {
         dependsOn("copyNativeLibs")
 
         from(layout.buildDirectory.dir("natives")) {
