@@ -3,22 +3,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  natives:
+  platform:
     runs-on: ${{ matrix.os }}
-    name: ${{ matrix.target }}
+    name: Build ${{ matrix.name }} JAR
 
     strategy:
       matrix:
         include:
-          - os: windows-latest
+          - name: windows-x86_64
+            os: windows-latest
             target: x86_64-pc-windows-msvc
-          - os: ubuntu-latest
+          - name: linux-x86_64
+            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
+          - name: linux-aarch64
+            os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-          - os: macos-latest
+          - name: macos-x86_64
+            os: macos-latest
             target: x86_64-apple-darwin
-          - os: macos-latest
+          - name: macos-aarch64
+            os: macos-latest
             target: aarch64-apple-darwin
 
     steps:
@@ -41,6 +46,15 @@ jobs:
         with:
           packages: gcc-aarch64-linux-gnu
           version: 1.0
+
+      - name: Install JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -71,9 +85,22 @@ jobs:
           name: ${{ matrix.target }}
           path: ffi/target/${{ matrix.target }}/release/${{ env.LIBFILE }}
 
-  jar:
-    name: Build JAR
-    needs: natives
+      - name: Build JAR
+        run: ./gradlew build -Pmode=release -Pci -Ptarget=${{ matrix.target }} --no-daemon
+
+      - name: Get project version
+        id: gradle_version
+        run: echo "VERSION=$(./gradlew -q version)" >> $GITHUB_ENV
+
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpixel ${{ env.VERSION }} for ${{ matrix.name }}
+          path: build/libs/mcpixel-${{ env.VERSION }}-${{ matrix.name }}.jar
+
+  universal:
+    name: Build universal JAR
+    needs: platform
     runs-on: ubuntu-latest
 
     steps:
@@ -108,11 +135,12 @@ jobs:
       - name: Build JAR
         run: ./gradlew build -Pmode=release -Pci --no-daemon
 
-      - name: Rename JAR
-        run: mv build/libs/*-all.jar build/libs/$(ls build/libs/*-all.jar | sed 's/-all\.jar$/.jar/' | xargs basename)
+      - name: Get project version
+        id: gradle_version
+        run: echo "VERSION=$(./gradlew -q version)" >> $GITHUB_ENV
 
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
-          name: mcpixel
-          path: build/libs/mcpixel-*.jar
+          name: mcpixel ${{ env.VERSION }}
+          path: build/libs/mcpixel-${{ env.VERSION }}-universal.jar

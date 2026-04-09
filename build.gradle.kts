@@ -5,12 +5,12 @@ val bstats = project.findProperty("bstats").toString()
 
 // constants
 val validProfiles = listOf("debug", "release");
-val validTargets = listOf(
-    "x86_64-pc-windows-msvc",
-    "x86_64-unknown-linux-gnu",
-    "aarch64-unknown-linux-gnu",
-    "x86_64-apple-darwin",
-    "aarch64-apple-darwin"
+val targetNames = mapOf(
+    "x86_64-pc-windows-msvc" to "windows-x86_64",
+    "x86_64-unknown-linux-gnu" to "linux-x86_64",
+    "aarch64-unknown-linux-gnu" to "linux-aarch64",
+    "x86_64-apple-darwin" to "macos-x86_64",
+    "aarch64-apple-darwin" to "macos-aarch64"
 )
 
 // config
@@ -30,7 +30,7 @@ fun computeTargets(): List<String> {
                 else -> error("Unsupported OS/arch: $os/$arch")
             }
         )
-    } else if (!validTargets.contains(target)) {
+    } else if (!targetNames.keys.contains(target)) {
         error("Target $target is not supported")
     }
 
@@ -123,6 +123,10 @@ tasks {
         dependsOn(shadowJar)
     }
 
+    jar {
+        archiveClassifier.set(null)
+    }
+
     shadowJar {
         // include natives
         dependsOn("copyNatives")
@@ -139,6 +143,15 @@ tasks {
         }
 
         relocate("org.bstats", "${project.group}.bstats")
+
+        // archive classifier
+        if (targets.size == 1) {
+            val target = targets.single()
+            val friendly = targetNames[target] ?: error("Target $target is not supported")
+            archiveClassifier.set(friendly)
+        } else {
+            archiveClassifier.set("universal")
+        }
     }
 
     // === dev ===
@@ -163,5 +176,14 @@ tasks {
 
     clean {
         dependsOn("cleanCargo")
+    }
+
+    // === other ===
+    register("version") {
+        val version = project.version.toString()
+
+        doLast {
+            print(version)
+        }
     }
 }
