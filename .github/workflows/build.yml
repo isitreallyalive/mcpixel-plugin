@@ -46,6 +46,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Determine library name
+        shell: bash
         run: |
           case "${{ matrix.target }}" in
             x86_64-pc-windows-msvc)
@@ -64,3 +65,49 @@ jobs:
         with:
           name: ${{ matrix.target }}
           path: ffi/target/${{ matrix.target }}/release/${{ env.LIBFILE }}
+
+  jar:
+    name: Build JAR
+    needs: natives
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Download all native libraries
+        uses: actions/download-artifact@v8
+        with:
+          path: natives-download
+
+      - name: Stage native libraries
+        run: |
+          for target in \
+            x86_64-pc-windows-msvc \
+            x86_64-unknown-linux-gnu \
+            aarch64-unknown-linux-gnu \
+            x86_64-apple-darwin \
+            aarch64-apple-darwin; do
+            mkdir -p ffi/target/$target/release
+            cp natives-download/$target/* ffi/target/$target/release/
+          done
+
+      - name: Build JAR
+        run: ./gradlew build -Pmode=release --no-daemon
+
+      - name: Rename JAR
+        run: mv build/libs/*-all.jar build/libs/$(ls build/libs/*-all.jar | sed 's/-all\.jar$/.jar/' | xargs basename)
+
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpixel
+          path: build/libs/mcpixel-*.jar
