@@ -1,4 +1,4 @@
-package dev.newty.mcpixel;
+package dev.newty.mcpixel.parsers;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.incendo.cloud.component.CommandComponent;
