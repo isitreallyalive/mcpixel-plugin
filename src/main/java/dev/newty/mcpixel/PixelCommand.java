@@ -88,7 +88,7 @@ public class PixelCommand implements CommandExecutor {
                 Material material = Material.matchMaterial(String.format("minecraft:%s", pair.baseId()));
                 if (material == null) continue;
 
-                world.getBlockAt(worldX, worldY, worldZ).setType(material);
+                world.getBlockAt(worldX, worldY, worldZ).setType(material, false);
             }
         }
 
