@@ -64,6 +64,13 @@ jobs:
         working-directory: ffi
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Build JAR
+        run: ./gradlew build -Pmode=release -Pci -Ptarget=${{ matrix.target }} --no-daemon
+
+      - name: Get project version
+        shell: bash
+        run: echo "VERSION=$(./gradlew -q version)" >> $GITHUB_ENV
+
       - name: Determine library name
         shell: bash
         run: |
@@ -77,14 +84,8 @@ jobs:
             *)
               echo "Unsupported target" >&2
               exit 1 ;;
+          
           esac
-
-      - name: Build JAR
-        run: ./gradlew build -Pmode=release -Pci -Ptarget=${{ matrix.target }} --no-daemon
-
-      - name: Get project version
-        id: gradle_version
-        run: echo "VERSION=$(./gradlew -q version)" >> $GITHUB_ENV
 
       - name: Upload library
         uses: actions/upload-artifact@v7
