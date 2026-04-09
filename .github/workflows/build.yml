@@ -40,6 +40,8 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ffi
 
       - name: Build library
         working-directory: ffi

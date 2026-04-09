@@ -16,6 +16,7 @@ repositories {
 dependencies {
     compileOnly("org.spigotmc:spigot-api:$minecraft-R0.1-SNAPSHOT")
     implementation("org.incendo:cloud-paper:2.0.0-beta.10")
+    implementation("org.bstats:bstats-bukkit:3.2.1")
 }
 
 buildscript {
@@ -139,5 +140,15 @@ tasks {
         from(layout.buildDirectory.dir("natives")) {
             into("natives")
         }
+
+        // bstats
+        configurations = project.configurations.runtimeClasspath.map { setOf(it) }
+
+        dependencies {
+            // only include bstats in the shaded jar
+            exclude { it.moduleGroup != "org.bstats" }
+        }
+
+        relocate("org.bstats", "${project.group}.bstats")
     }
 }
