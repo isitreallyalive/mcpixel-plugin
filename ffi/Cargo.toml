@@ -1,6 +1,6 @@
 [package]
 name = "ffi"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2024"
 
 [lib]
@@ -11,6 +11,5 @@ jni = "0.22.4"
 
 [dependencies.mcpixel]
 git = "https://github.com/isitreallyalive/mcpixel.git"
-package = "mcpixel-lib"
 default-features = false
 features = ["recommended"]

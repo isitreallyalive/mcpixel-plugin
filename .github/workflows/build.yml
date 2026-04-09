@@ -106,7 +106,7 @@ jobs:
           done
 
       - name: Build JAR
-        run: ./gradlew build -Pmode=release -PskipCargo=true --no-daemon
+        run: ./gradlew build -Pmode=release -Pci --no-daemon
 
       - name: Rename JAR
         run: mv build/libs/*-all.jar build/libs/$(ls build/libs/*-all.jar | sed 's/-all\.jar$/.jar/' | xargs basename)

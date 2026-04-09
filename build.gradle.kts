@@ -1,131 +1,116 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+// properties
+val minecraft = project.findProperty("minecraft").toString()
+val cloud = project.findProperty("cloud").toString()
+val bstats = project.findProperty("bstats").toString()
 
-val minecraft = project.property("minecraft_version").toString()
+// constants
+val validProfiles = listOf("debug", "release");
+val validTargets = listOf(
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin"
+)
 
+// config
+fun computeTargets(): List<String> {
+    val target = project.findProperty("target")?.toString()
+    val os = System.getProperty("os.name").lowercase()
+    val arch = System.getProperty("os.arch").lowercase()
+
+    if (target == null) {
+        return listOf(
+            when {
+                os.contains("win") && arch.contains("64") -> "x86_64-pc-windows-msvc"
+                os.contains("linux") && arch.contains("64") -> "x86_64-unknown-linux-gnu"
+                os.contains("linux") && arch.contains("aarch64") -> "aarch64-unknown-linux-gnu"
+                os.contains("mac") && arch.contains("x86_64") -> "x86_64-apple-darwin"
+                os.contains("mac") && arch.contains("aarch64") -> "aarch64-apple-darwin"
+                else -> error("Unsupported OS/arch: $os/$arch")
+            }
+        )
+    } else if (!validTargets.contains(target)) {
+        error("Target $target is not supported")
+    }
+
+    return listOf(target)
+}
+
+val isCi = project.hasProperty("ci")
+
+val profile = project.findProperty("mode")?.toString() ?: "debug";
+if (!validProfiles.contains(profile)) {
+    error("Profile $profile is not supported")
+}
+
+val targets = computeTargets()
+
+// build.gradle
 plugins {
     id("java-library")
     id("com.gradleup.shadow") version "9.4.1"
     id("xyz.jpenilla.run-paper") version "3.0.2"
 }
 
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21)) // jdk21
+}
+
 repositories {
     mavenCentral()
-    maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
+    maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/") // spigot
 }
 
 dependencies {
-    compileOnly("org.spigotmc:spigot-api:$minecraft-R0.1-SNAPSHOT")
-    implementation("org.incendo:cloud-paper:2.0.0-beta.10")
-    implementation("org.bstats:bstats-bukkit:3.2.1")
-}
-
-buildscript {
-    dependencies {
-        classpath("org.apache.commons:commons-compress:1.26.1")
-    }
-}
-
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(21)
-}
-
-// build task for each target
-val buildModes = listOf("debug", "release")
-val buildMode = project.findProperty("mode")?.toString() ?: "debug"
-
-fun currentPlatform(): String {
-    val os = System.getProperty("os.name").lowercase()
-    val arch = System.getProperty("os.arch").lowercase()
-
-    return when {
-        os.contains("win") && arch.contains("64") -> "x86_64-pc-windows-msvc"
-        os.contains("linux") && arch.contains("64") -> "x86_64-unknown-linux-gnu"
-        os.contains("linux") && arch.contains("aarch64") -> "aarch64-unknown-linux-gnu"
-        os.contains("mac") && arch.contains("x86_64") -> "x86_64-apple-darwin"
-        os.contains("mac") && arch.contains("aarch64") -> "aarch64-apple-darwin"
-        else -> error("Unsupported OS/arch: $os/$arch")
-    }
-}
-
-val targetsToBuild = if (buildMode == "debug") {
-    listOf(currentPlatform())
-} else {
-    listOf(
-        "x86_64-pc-windows-msvc",
-        "x86_64-unknown-linux-gnu",
-        "aarch64-unknown-linux-gnu",
-        "x86_64-apple-darwin",
-        "aarch64-apple-darwin"
-    )
-}
-
-buildModes.forEach { mode ->
-    targetsToBuild.forEach { target ->
-        val taskName = "cargoBuild_${target}_$mode"
-        tasks.register<Exec>(taskName) {
-            group = "build"
-            workingDir = file("ffi")
-
-            val argsList = mutableListOf("--target", target)
-            if (buildMode == "release") argsList.add("--release")
-
-            commandLine(listOf("cargo", "build") + argsList)
-        }
-    }
+    compileOnly("org.spigotmc:spigot-api:$minecraft-R0.1-SNAPSHOT") // spigot
+    implementation("org.incendo:cloud-paper:$cloud")                // cloud
+    implementation("org.bstats:bstats-bukkit:$bstats")              // bstats
 }
 
 tasks {
+    // === resources ===
     processResources {
+        // fill properties into plugin.yml
         val props = mapOf("version" to version)
         filesMatching("plugin.yml") {
             expand(props)
         }
     }
 
-    compileJava {
-        // allow ACF to generate syntax messages
-        options.compilerArgs.add("-parameters")
-    }
+    // rust
+    targets.forEach { target ->
+        register<Exec>("cargo_$target") {
+            group = "ffi"
+            workingDir = file("ffi")
 
-    named("build") {
-        dependsOn("shadowJar")
-    }
+            val args = mutableListOf("--target", target)
+            if (profile == "release") args.add("--release")
 
-    runServer {
-        minecraftVersion(minecraft)
-        jvmArgs("-Dcom.mojang.eula.agree=true")
-
-        doFirst {
-            val propsFile = file("run/server.properties");
-            propsFile.parentFile.mkdirs()
-            propsFile.writeText(
-                """
-                difficulty=peaceful
-                level-type=flat
-                generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}
-                """.trimIndent()
-            )
+            commandLine(listOf("cargo", "build") + args)
         }
     }
 
-    // copy native libraries
-    register<Copy>("copyNativeLibs") {
+    register<Copy>("copyNatives") {
         group = "ffi";
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
-        dependsOn(targetsToBuild.map { target -> "cargoBuild_${target}_$buildMode" })
+        if (!isCi) {
+            dependsOn(targets.map { target -> "cargo_$target" })
+        }
 
-        targetsToBuild.forEach { target ->
-            val targetDir = layout.projectDirectory.dir("ffi/target/$target/$buildMode")
-            val libName = when (target) {
-                "x86_64-pc-windows-msvc" -> "ffi.dll"
-                "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu" -> "libffi.so"
-                "x86_64-apple-darwin", "aarch64-apple-darwin" -> "libffi.dylib"
-                else -> error("Unsupported target: $target")
-            }
-            val libFile = targetDir.file(libName)
+        targets.forEach { target ->
+            val dir = layout.projectDirectory.dir("ffi/target/$target/$profile");
+            var lib = dir.file(
+                when (target) {
+                    "x86_64-pc-windows-msvc" -> "ffi.dll"
+                    "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu" -> "libffi.so"
+                    "x86_64-apple-darwin", "aarch64-apple-darwin" -> "libffi.dylib"
+                    else -> error("Unsupported target: $target")
+                }
+            )
 
-            from(libFile) {
+            from(lib) {
                 rename { _ -> target }
             }
         }
@@ -133,29 +118,50 @@ tasks {
         into(layout.buildDirectory.dir("natives"))
     }
 
-    // copy native libs into the jar
-    named<ShadowJar>("shadowJar") {
-        dependsOn("copyNativeLibs")
+    // === shadow ===
+    build {
+        dependsOn(shadowJar)
+    }
+
+    shadowJar {
+        // include natives
+        dependsOn("copyNatives")
 
         from(layout.buildDirectory.dir("natives")) {
             into("natives")
         }
 
-        // bstats
+        // include bstats
         configurations = project.configurations.runtimeClasspath.map { setOf(it) }
 
         dependencies {
-            // only include bstats in the shaded jar
             exclude { it.moduleGroup != "org.bstats" }
         }
 
         relocate("org.bstats", "${project.group}.bstats")
     }
-}
 
-// skip rust builds
-if (findProperty("skipCargo") == "true") {
-    tasks.matching { it.name.startsWith("cargoBuild") }.configureEach {
-        enabled = false
+    // === dev ===
+    runServer {
+        minecraftVersion(minecraft)
+        jvmArgs("-Dcom.mojang.eula.agree=true") // agree to the EULA
+
+        // copy server.properties
+        doFirst {
+            file("server.properties")
+                .copyTo(file("run/server.properties"), overwrite = true)
+        }
+    }
+
+    // === cleanup ===
+    register<Exec>("cleanCargo") {
+        group = "ffi"
+        workingDir = file("ffi")
+
+        commandLine(listOf("cargo", "clean"))
+    }
+
+    clean {
+        dependsOn("cleanCargo")
     }
 }
