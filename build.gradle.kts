@@ -152,3 +152,10 @@ tasks {
         relocate("org.bstats", "${project.group}.bstats")
     }
 }
+
+// skip rust builds
+if (findProperty("skipCargo") == "true") {
+    tasks.matching { it.name.startsWith("cargoBuild") }.configureEach {
+        enabled = false
+    }
+}
