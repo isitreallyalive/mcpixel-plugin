@@ -129,9 +129,8 @@ public final class PixelCommand {
                 if (texture == null) continue;
 
                 // find the associated world coordinates
-                Vector offset = right.clone().multiply(x).add(up.clone().multiply(y));
+                Vector offset = right.clone().multiply(x).add(up.clone().multiply(y - 1));
                 Location blockLocation = origin.clone().add(offset);
-                blockLocation.subtract(0, 1, 0);
 
                 // find the associated block
                 Material material = Material.matchMaterial(String.format("minecraft:%s", texture.baseId()));

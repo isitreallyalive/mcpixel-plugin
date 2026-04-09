@@ -1,0 +1,66 @@
+name: Build plugin
+on:
+  workflow_dispatch:
+
+jobs:
+  natives:
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.target }}
+
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Install cross-linker for aarch64 Linux
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Install protobuf compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build library
+        working-directory: ffi
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Determine library name
+        run: |
+          case "${{ matrix.target }}" in
+            x86_64-pc-windows-msvc)
+              echo "LIBFILE=ffi.dll" >> $GITHUB_ENV ;;
+            x86_64-unknown-linux-gnu|aarch64-unknown-linux-gnu)
+              echo "LIBFILE=libffi.so" >> $GITHUB_ENV ;;
+            x86_64-apple-darwin|aarch64-apple-darwin)
+              echo "LIBFILE=libffi.dylib" >> $GITHUB_ENV ;;
+            *)
+              echo "Unsupported target" >&2
+              exit 1 ;;
+          esac
+
+      - name: Upload library
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          path: ffi/target/${{ matrix.target }}/release/${{ env.LIBFILE }}
