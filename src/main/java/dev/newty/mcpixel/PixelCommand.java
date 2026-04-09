@@ -9,6 +9,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitScheduler;
 import org.bukkit.util.Vector;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.incendo.cloud.Command;
@@ -69,36 +70,48 @@ public final class PixelCommand {
     }
 
     private static void handle(@NonNull CommandContext<Player> ctx) {
-        // fetch image
-        URL url = ctx.get("url");
-        byte[] image;
-
-        try (InputStream is = url.openStream()) {
-            image = is.readAllBytes();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        // create art
-        FlagContext flags = ctx.flags();
-        Configuration config = Configuration.fromFlags(flags);
-        long art = McPixel.newArt(image, config);
-        int[] dimensions = McPixel.artDimensions(art);
-        List<Texture> textures = Arrays.asList(McPixel.artBlocks(art));
-        McPixel.freeArt(art);
-
-        Collections.reverse(textures);
-
-        // build art
         Player player = ctx.sender();
+        URL url = ctx.get("url");
+        FlagContext flags = ctx.flags();
+        BukkitScheduler scheduler = player.getServer().getScheduler();
+        Plugin plugin = Plugin.getPlugin();
+
+        // determine origin
+        Location originRaw = flags.get("origin");
+        if (originRaw == null) originRaw = player.getLocation();
+        originRaw.setYaw(Math.round(originRaw.getYaw() / 90.0f) * 90.0f); // snap to nearest cardinal
+        final Location origin = originRaw;
+
+        scheduler.runTaskAsynchronously(plugin, () -> {
+            // fetch image
+            byte[] image;
+
+            try (InputStream is = url.openStream()) {
+                image = is.readAllBytes();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            // create art
+            Configuration config = Configuration.fromFlags(flags);
+            long art = McPixel.newArt(image, config);
+            int[] dimensions = McPixel.artDimensions(art);
+            List<Texture> textures = Arrays.asList(McPixel.artBlocks(art));
+            McPixel.freeArt(art);
+
+            Collections.reverse(textures);
+
+            // schedule block placement on main thread
+            scheduler.runTask(plugin, () -> {
+                placeBlocks(player, origin, dimensions, textures);
+            });
+        });
+    }
+
+    private static void placeBlocks(Player player, Location origin, int[] dimensions, List<Texture> textures) {
         World world = player.getWorld();
         int width = dimensions[0];
         int height = dimensions[1];
-
-        // determine origin
-        Location origin = flags.get("origin");
-        if (origin == null) origin = player.getLocation();
-        origin.setYaw(Math.round(origin.getYaw() / 90.0f) * 90.0f); // snap to nearest cardinal
 
         // vectors
         Vector forward = origin.getDirection().normalize();
