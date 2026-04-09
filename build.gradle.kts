@@ -168,14 +168,22 @@ tasks {
 
     // === cleanup ===
     register<Exec>("cleanCargo") {
-        group = "ffi"
+        group = "clean"
         workingDir = file("ffi")
 
         commandLine(listOf("cargo", "clean"))
     }
 
+    register<Delete>("cleanServer") {
+        group = "clean"
+
+        delete("run")
+    }
+
     clean {
-        dependsOn("cleanCargo")
+        group = "clean"
+
+        dependsOn("cleanCargo", "cleanServer")
     }
 
     // === other ===
