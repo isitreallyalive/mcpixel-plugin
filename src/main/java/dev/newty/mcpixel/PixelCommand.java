@@ -1,97 +1,111 @@
 package dev.newty.mcpixel;
 
-import dev.newty.mcpixel.ffi.Texture;
+import dev.newty.mcpixel.ffi.Configuration;
 import dev.newty.mcpixel.ffi.McPixel;
+import dev.newty.mcpixel.ffi.Texture;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.jspecify.annotations.NonNull;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.incendo.cloud.Command;
+import org.incendo.cloud.bukkit.parser.location.LocationParser;
+import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.paper.LegacyPaperCommandManager;
+import org.incendo.cloud.parser.ParserDescriptor;
+import org.incendo.cloud.parser.flag.CommandFlag;
+import org.incendo.cloud.parser.flag.FlagContext;
+import org.incendo.cloud.parser.standard.BooleanParser;
+import org.incendo.cloud.parser.standard.FloatParser;
+import org.incendo.cloud.parser.standard.IntegerParser;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URL;
-import java.util.Arrays;
 
-public class PixelCommand implements CommandExecutor {
-    @Override
-    public boolean onCommand(@NonNull CommandSender sender, org.bukkit.command.@NonNull Command command, @NonNull String label, String @NonNull [] args) {
-        // make sure there are args
-        if (args.length < 4) return false;
+public final class PixelCommand {
+    private static final ParserDescriptor<Object, Integer> INT = IntegerParser.integerParser();
+    private static final ParserDescriptor<Object, Float> FLOAT = FloatParser.floatParser();
 
-        // make sure the command was sent by a player
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("Must be a player");
-            return true;
-        }
+    private static <T> CommandFlag<T> flag(
+            ParserDescriptor<? super Object, T> parser,
+            String longName,
+            String... aliases
+    ) {
+        return CommandFlag.<T>builder(longName)
+                .withAliases(aliases)
+                .withComponent(parser)
+                .build();
+    }
 
-        // parse coordinates
-        int x, y, z;
+    private static CommandFlag<Void> flag(String longName, String... aliases) {
+        return CommandFlag.<Void>builder(longName)
+                .withAliases(aliases)
+                .build();
+    }
+
+    public static Command<Player> build(LegacyPaperCommandManager<CommandSender> manager) {
+        return manager.commandBuilder("pixel")
+                .senderType(Player.class)
+                // <url>
+                .argument(UrlParser.component().name("url"))
+                // <x> <y> <z>
+                .argument(LocationParser.locationComponent().name("origin").optional())
+                // flags
+                .flag(flag(INT, "size", "s"))
+                .flag(flag("stretch"))
+                .flag(flag(INT, "colours", "c"))
+                .flag(flag(FLOAT, "brightness", "b"))
+                .flag(flag(FLOAT, "saturation"))
+                .flag(flag(FLOAT, "smooth"))
+                .flag(flag("overlay", "o"))
+                .handler(PixelCommand::handle)
+                .build();
+    }
+
+    private static void handle(@NonNull CommandContext<Player> ctx) {
+        // fetch image
+        URL url = ctx.get("url");
+        byte[] image;
 
         try {
-            x = Integer.parseInt(args[args.length - 3]);
-            y = Integer.parseInt(args[args.length - 2]);
-            z = Integer.parseInt(args[args.length - 1]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage("Invalid coordinates");
-            return true;
-        }
-
-        // parse URL
-        URL url;
-
-        try {
-            String urlString = String.join(" ", Arrays.copyOf(args, args.length - 3));
-            url = URI.create(urlString).toURL();
-        } catch (MalformedURLException e) {
-            sender.sendMessage("Invalid URL");
-            return true;
-        }
-
-        // read the image data at the URL
-        byte[] data;
-
-        try {
-            data = url.openStream().readAllBytes();
+            image = url.openStream().readAllBytes();
         } catch (IOException e) {
-            sender.sendMessage("Failed to read image data: " + e.getMessage());
-            return true;
+            throw new RuntimeException(e);
         }
 
-        // generate the pixel art
-        long art = McPixel.newArt(data);
-        Texture[] blocks = McPixel.artBlocks(art);
+        // create art
+        Configuration config = Configuration.fromFlags(ctx.flags());
+        long art = McPixel.newArt(image, config);
         int[] dimensions = McPixel.artDimensions(art);
+        Texture[] textures = McPixel.artBlocks(art);
+        McPixel.freeArt(art);
+
+        // build art
+        Player player = ctx.sender();
+        Location origin = ctx.getOrDefault("origin", player.getLocation());
+        World world = player.getWorld();
         int width = dimensions[0];
         int height = dimensions[1];
 
-        // build the pixel art
-        World world = player.getWorld();
-        Location origin = new Location(world, x, y, z);
-
-        for (int iy = 0; iy < height; iy++) {
-            for (int ix = 0; ix < width; ix++) {
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
                 // find the relevant texture
-                int idx = iy * width + ix;
-                Texture pair = blocks[idx];
-                if (pair == null) continue;
+                int idx = y * width + x;
+                Texture texture = textures[idx];
+                if (texture == null) continue;
 
                 // find the associated world coordinates
-                int worldX = origin.getBlockX() + width - ix - 1;
-                int worldY = origin.getBlockY() + height - iy - 1;
+                int worldX = origin.getBlockX() + width - x - 2;
+                int worldY = origin.getBlockY() + width - y - 2;
                 int worldZ = origin.getBlockZ();
 
                 // find the associated block
-                Material material = Material.matchMaterial(String.format("minecraft:%s", pair.baseId()));
+                Material material = Material.matchMaterial(String.format("minecraft:%s", texture.baseId()));
                 if (material == null) continue;
 
                 world.getBlockAt(worldX, worldY, worldZ).setType(material, false);
             }
         }
-
-        return true;
     }
 }

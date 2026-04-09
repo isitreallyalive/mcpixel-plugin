@@ -1,7 +1,6 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 val minecraft = project.property("minecraft_version").toString()
-val imageio = project.property("imageio_version").toString()
 
 plugins {
     id("java-library")
@@ -11,13 +10,12 @@ plugins {
 
 repositories {
     mavenCentral()
-    maven("https://repo.aikar.co/content/groups/aikar/")
     maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
 }
 
 dependencies {
     compileOnly("org.spigotmc:spigot-api:$minecraft-R0.1-SNAPSHOT")
-    implementation("co.aikar:acf-bukkit:0.5.1-SNAPSHOT")
+    implementation("org.incendo:cloud-paper:2.0.0-beta.10")
 }
 
 buildscript {
@@ -86,12 +84,6 @@ tasks {
     compileJava {
         // allow ACF to generate syntax messages
         options.compilerArgs.add("-parameters")
-    }
-
-    shadowJar {
-        // ACF
-        relocate("co.aikar.commands", "dev.newty.mcpixel.acf")
-        relocate("co.aikar.locales", "dev.newty.mcpixel.locales")
     }
 
     named("build") {

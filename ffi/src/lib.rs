@@ -1,10 +1,16 @@
+use crate::config::FfiConfiguration;
+use jni::EnvUnowned;
 use jni::errors::{Error, ThrowRuntimeExAndDefault};
 use jni::objects::{JByteArray, JClass, JIntArray, JObject, JString};
 use jni::sys::{jint, jintArray, jlong, jobjectArray, jsize};
-use jni::{EnvUnowned, bind_java_type, jni_mangle, jni_str};
+use mcpixel::PixelArt;
 use mcpixel::version::Version;
-use mcpixel::{Configuration, PixelArt};
 use std::sync::LazyLock;
+
+#[macro_use]
+extern crate jni;
+
+mod config;
 
 static VERSION: LazyLock<Version> = LazyLock::new(|| {
     let data = include_bytes!("1.21.11");
@@ -21,12 +27,21 @@ bind_java_type! {
 }
 
 #[jni_mangle("dev.newty.mcpixel.ffi.McPixel")]
-pub extern "system" fn new_art(mut env: EnvUnowned, _: JClass, image: JByteArray) -> jlong {
-    let image = env
-        .with_env(|env| env.convert_byte_array(image))
+pub extern "system" fn new_art(
+    mut env: EnvUnowned,
+    _: JClass,
+    image: JByteArray,
+    config: FfiConfiguration,
+) -> jlong {
+    let (image, config) = env
+        .with_env(|env| {
+            let image = env.convert_byte_array(image)?;
+            let config = config.convert(env)?;
+            Ok::<_, Error>((image, config))
+        })
         .resolve::<ThrowRuntimeExAndDefault>();
 
-    match PixelArt::new(image, VERSION.clone(), Configuration::default()) {
+    match PixelArt::new(image, VERSION.clone(), config) {
         Ok(art) => Box::into_raw(Box::new(art)) as jlong,
         Err(_) => 0, // null ptr
     }
