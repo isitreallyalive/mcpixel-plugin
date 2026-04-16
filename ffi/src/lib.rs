@@ -13,7 +13,7 @@ extern crate jni;
 mod config;
 
 static VERSION: LazyLock<Version> = LazyLock::new(|| {
-    let data = include_bytes!("1.21.11");
+    let data = include_bytes!(concat!(env!("OUT_DIR"), "/data"));
     Version::read(&data[..]).expect("should have valid version data")
 });
 

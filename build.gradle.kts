@@ -84,10 +84,10 @@ tasks {
             group = "ffi"
             workingDir = file("ffi")
 
-            val args = mutableListOf("--target", target)
             if (profile == "release") args.add("--release")
 
-            commandLine(listOf("cargo", "build") + args)
+            environment("MINECRAFT", minecraft)
+            commandLine(listOf("cargo", "build", "--target", target) + args)
         }
     }
 
@@ -171,18 +171,16 @@ tasks {
         group = "clean"
         workingDir = file("ffi")
 
-        commandLine(listOf("cargo", "clean"))
+        commandLine(listOf("cargo", "clean", "-q"))
     }
 
     register<Delete>("cleanServer") {
         group = "clean"
-
         delete("run")
     }
 
     clean {
         group = "clean"
-
         dependsOn("cleanCargo", "cleanServer")
     }
 

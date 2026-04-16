@@ -13,3 +13,8 @@ jni = "0.22.4"
 git = "https://github.com/isitreallyalive/mcpixel.git"
 default-features = false
 features = ["recommended"]
+
+[build-dependencies]
+hex = "0.4.3"
+md5 = "0.8.0"
+ureq = "3.3.0"
